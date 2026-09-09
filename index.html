@@ -180,7 +180,7 @@ button{cursor:pointer;border:none;border-radius:var(--radius-sm);font-family:var
         </div>
         <div class="step" id="s2">
           <span class="step-icon">&#x1F3A8;</span>
-          <span>HuggingFace: Generating image&hellip;</span>
+          <span id="s2-text">HuggingFace: Generating image&hellip;</span>
           <div class="spinner sp" style="display:none;margin-left:auto"></div>
         </div>
         <div class="step" id="s3">
@@ -336,6 +336,7 @@ async function processEntry(){
     const elem=el(id);
     if(elem){ elem.className='step'; const sp=elem.querySelector('.sp'); if(sp) sp.style.display='none'; }
   });
+  if(el('s2-text')) el('s2-text').textContent = 'HuggingFace: Generating image…';
 
   try{
     setStep('s1','active');
@@ -365,7 +366,10 @@ async function processEntry(){
     console.error('Process error:', err);
     ['s1','s2','s3'].forEach(function(id){ if(el(id)&&el(id).classList.contains('active')) setStep(id,'error'); });
     toast(err.message || 'An error occurred during processing.','error');
-  }finally{ busy=false; setBusy(false); }
+  }finally{
+    busy=false; setBusy(false);
+    if(el('s2-text')) el('s2-text').textContent = 'HuggingFace: Generating image…';
+  }
 }
 
 function setBusy(b){
@@ -416,36 +420,124 @@ async function callGemini(key,diaryText){
 async function callHF(token,prompt){
   const url='https://api-inference.huggingface.co/models/'+HF_MODEL;
   const neg='nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry';
-  const r=await fetch(url,{
-    method:'POST',
-    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','x-wait-for-model':'true'},
-    body:JSON.stringify({inputs:prompt,parameters:{negative_prompt:neg,width:832,height:1216,num_inference_steps:28,guidance_scale:7}})
-  });
-  if(!r.ok){
-    let m='HuggingFace ('+r.status+')';
-    try{
-      const e=await r.json();
-      if(e && e.error) m += ': ' + (typeof e.error === 'string' ? e.error : JSON.stringify(e.error));
-      else if(e && e.message) m += ': ' + e.message;
-    }catch(x){ m += ': ' + r.statusText; }
-    throw new Error(m);
-  }
-  const blob=await r.blob();
-  if(blob.type && blob.type.indexOf('application/json') !== -1){
-    const txt = await blob.text();
-    try {
-      const json = JSON.parse(txt);
-      if(json.error) throw new Error('HuggingFace: ' + json.error);
-    } catch(err) {
-      if(err.message && err.message.indexOf('HuggingFace:') !== -1) throw err;
+  const payload = {
+    inputs: prompt,
+    parameters: {
+      negative_prompt: neg,
+      width: 832,
+      height: 1216,
+      num_inference_steps: 28,
+      guidance_scale: 7
     }
+  };
+
+  const s2Text = el('s2-text');
+
+  while (true) {
+    let r;
+    try {
+      r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'x-wait-for-model': 'true'
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch(netErr) {
+      throw new Error('Network error connecting to Hugging Face: ' + netErr.message);
+    }
+
+    // 1. Handle HTTP 503 (Model cold-start / loading)
+    if (r.status === 503) {
+      let waitSeconds = 20;
+      try {
+        const errJson = await r.json();
+        if (errJson && errJson.estimated_time) {
+          waitSeconds = Math.max(5, Math.ceil(errJson.estimated_time));
+        }
+      } catch(_) {}
+
+      if (s2Text) s2Text.textContent = 'Waking up the image model...';
+      toast('Waking up the image model... waiting ' + waitSeconds + 's', 'info');
+
+      for (let remaining = waitSeconds; remaining > 0; remaining--) {
+        if (s2Text) s2Text.textContent = 'Waking up the image model... (' + remaining + 's)';
+        await new Promise(function(res){ setTimeout(res, 1000); });
+      }
+      if (s2Text) s2Text.textContent = 'HuggingFace: Generating image…';
+      continue; // retry
+    }
+
+    // 2. Handle other non-200 responses
+    if (!r.ok) {
+      let isColdStart = false;
+      let waitSeconds = 20;
+      let m = 'HuggingFace (' + r.status + ')';
+
+      try {
+        const e = await r.json();
+        const errStr = (e && (e.error || e.message) || '').toString();
+        if (errStr.toLowerCase().includes('loading') || (e && e.estimated_time)) {
+          isColdStart = true;
+          if (e && e.estimated_time) {
+            waitSeconds = Math.max(5, Math.ceil(e.estimated_time));
+          }
+        } else {
+          m += ': ' + (errStr || JSON.stringify(e));
+        }
+      } catch(x) {
+        m += ': ' + r.statusText;
+      }
+
+      if (isColdStart) {
+        if (s2Text) s2Text.textContent = 'Waking up the image model...';
+        toast('Waking up the image model... waiting ' + waitSeconds + 's', 'info');
+        for (let remaining = waitSeconds; remaining > 0; remaining--) {
+          if (s2Text) s2Text.textContent = 'Waking up the image model... (' + remaining + 's)';
+          await new Promise(function(res){ setTimeout(res, 1000); });
+        }
+        if (s2Text) s2Text.textContent = 'HuggingFace: Generating image…';
+        continue; // retry
+      }
+
+      throw new Error(m);
+    }
+
+    // 3. Check if response is JSON (sometimes 200 with loading state or error)
+    const blob = await r.blob();
+    if (blob.type && blob.type.indexOf('application/json') !== -1) {
+      const txt = await blob.text();
+      let json = null;
+      try { json = JSON.parse(txt); } catch(_) {}
+
+      if (json) {
+        const errStr = (json.error || json.message || '').toString();
+        if (errStr.toLowerCase().includes('loading') || json.estimated_time) {
+          const waitSeconds = json.estimated_time ? Math.max(5, Math.ceil(json.estimated_time)) : 20;
+          if (s2Text) s2Text.textContent = 'Waking up the image model...';
+          toast('Waking up the image model... waiting ' + waitSeconds + 's', 'info');
+          for (let remaining = waitSeconds; remaining > 0; remaining--) {
+            if (s2Text) s2Text.textContent = 'Waking up the image model... (' + remaining + 's)';
+            await new Promise(function(res){ setTimeout(res, 1000); });
+          }
+          if (s2Text) s2Text.textContent = 'HuggingFace: Generating image…';
+          continue; // retry
+        }
+        if (json.error) throw new Error('HuggingFace: ' + json.error);
+      }
+    }
+
+    // Success! Return image data url
+    if (s2Text) s2Text.textContent = 'HuggingFace: Generating image…';
+    return new Promise(function(res,rej){
+      const rd = new FileReader();
+      rd.onload = function(){ res(rd.result); };
+      rd.onerror = function(){ rej(new Error('Failed to read image blob.')); };
+      rd.readAsDataURL(blob);
+    });
   }
-  return new Promise(function(res,rej){
-    const rd=new FileReader();
-    rd.onload=function(){res(rd.result);};
-    rd.onerror=function(){rej(new Error('Failed to read image blob.'));};
-    rd.readAsDataURL(blob);
-  });
 }
 
 function render(){

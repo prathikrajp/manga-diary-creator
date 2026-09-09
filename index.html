@@ -34,6 +34,10 @@ header{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#0d0d
 .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
 label{font-size:.78rem;color:var(--text-2);margin-bottom:4px;display:block}
 .field{display:flex;flex-direction:column;gap:4px}
+.input-wrap{position:relative;display:flex;align-items:center;width:100%}
+.input-wrap input{padding-right:38px}
+.btn-toggle-pw{position:absolute;right:8px;background:none;border:none;color:var(--text-3);padding:4px 6px;cursor:pointer;font-size:.9rem;line-height:1;border-radius:4px;opacity:0.6;transition:opacity .2s}
+.btn-toggle-pw:hover{opacity:1;color:var(--text-1)}
 input[type=password],input[type=text],textarea{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-1);font-family:var(--font-main);font-size:.85rem;padding:9px 12px;width:100%;transition:border-color .2s,box-shadow .2s;outline:none}
 input[type=password]:focus,input[type=text]:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--border-glow)}
 textarea{resize:vertical;min-height:120px;line-height:1.5}
@@ -130,12 +134,18 @@ button{cursor:pointer;border:none;border-radius:var(--radius-sm);font-family:var
       <div class="section-title"><div class="dot"></div>&nbsp;API Configuration</div>
       <div class="field">
         <label>Google Gemini API Key</label>
-        <input type="password" id="gkey" placeholder="AIza&#x2026;" autocomplete="off"/>
+        <div class="input-wrap">
+          <input type="password" id="gkey" placeholder="AIza&#x2026;" autocomplete="off" oninput="autoSaveKeys()"/>
+          <button type="button" class="btn-toggle-pw" onclick="togglePw('gkey', this)" title="Show/Hide Key">&#x1F441;&#xFE0F;</button>
+        </div>
         <div id="gbadge" class="key-badge" style="display:none">&#x2713; Saved in LocalStorage</div>
       </div>
       <div class="field">
         <label>Hugging Face Access Token</label>
-        <input type="password" id="hkey" placeholder="hf_&#x2026;" autocomplete="off"/>
+        <div class="input-wrap">
+          <input type="password" id="hkey" placeholder="hf_&#x2026;" autocomplete="off" oninput="autoSaveKeys()"/>
+          <button type="button" class="btn-toggle-pw" onclick="togglePw('hkey', this)" title="Show/Hide Token">&#x1F441;&#xFE0F;</button>
+        </div>
         <div id="hbadge" class="key-badge" style="display:none">&#x2713; Saved in LocalStorage</div>
       </div>
       <button class="btn-sec" onclick="saveKeys()">&#x1F4BE; Save Keys</button>
@@ -257,87 +267,116 @@ const CHAR_BASE='1boy, Indian male, college student, short hair, electronics eng
 const HF_MODEL='cagliostrolab/animagine-xl-3.1';
 let entries=[], pendingDel=null, busy=false;
 
-function init(){ loadKeys(); loadEntries(); render(); }
+function el(id){ return document.getElementById(id); }
+function showEl(id){ const elem=el(id); if(elem) elem.style.display=''; }
+function hideEl(id){ const elem=el(id); if(elem) elem.style.display='none'; }
+
+function togglePw(inputId, btn){
+  const inp = el(inputId);
+  if(!inp) return;
+  if(inp.type === 'password'){
+    inp.type = 'text';
+    btn.style.opacity = '1';
+  } else {
+    inp.type = 'password';
+    btn.style.opacity = '0.6';
+  }
+}
+
+function init(){
+  loadKeys();
+  loadEntries();
+  render();
+}
 
 function loadKeys(){
   const g=localStorage.getItem(LS_G), h=localStorage.getItem(LS_H);
-  if(g){gkey.value=g; show('gbadge');}
-  if(h){hkey.value=h; show('hbadge');}
+  if(g){ el('gkey').value=g; showEl('gbadge'); } else { hideEl('gbadge'); }
+  if(h){ el('hkey').value=h; showEl('hbadge'); } else { hideEl('hbadge'); }
+}
+
+function autoSaveKeys(){
+  const g=el('gkey').value.trim(), h=el('hkey').value.trim();
+  if(g){ localStorage.setItem(LS_G, g); showEl('gbadge'); } else { localStorage.removeItem(LS_G); hideEl('gbadge'); }
+  if(h){ localStorage.setItem(LS_H, h); showEl('hbadge'); } else { localStorage.removeItem(LS_H); hideEl('hbadge'); }
 }
 
 function saveKeys(){
-  const g=gkey.value.trim(), h=hkey.value.trim();
-  if(g){localStorage.setItem(LS_G,g); show('gbadge');}
-  if(h){localStorage.setItem(LS_H,h); show('hbadge');}
-  if(g||h) toast('Keys saved!','success'); else toast('Enter at least one key.','error');
+  autoSaveKeys();
+  const g=el('gkey').value.trim(), h=el('hkey').value.trim();
+  if(g||h) toast('API credentials saved to LocalStorage!','success');
+  else toast('Please enter at least one API key.','error');
 }
 
 function loadEntries(){
-  try{ entries=JSON.parse(localStorage.getItem(LS_E))||[]; }catch{entries=[];}
+  try{ entries=JSON.parse(localStorage.getItem(LS_E))||[]; }catch(e){entries=[];}
 }
 function saveEntries(){ localStorage.setItem(LS_E, JSON.stringify(entries)); }
 
-function (id){ return document.getElementById(id); }
-function { return document.getElementById(id); }
-function show(id){ .style.display=''; }
-function hide(id){ .style.display='none'; }
-
 function setStep(id, st){
-  const el=; el.className='step '+st;
-  const sp=el.querySelector('.sp');
+  const e=el(id); if(!e) return;
+  e.className='step '+st;
+  const sp=e.querySelector('.sp');
   if(sp) sp.style.display= st==='active'?'inline-block':'none';
 }
 
 async function processEntry(){
   if(busy) return;
-  const txt=diary.value.trim();
-  if(!txt){toast('Write your diary entry first!','error');return;}
-  const gk=gkey.value.trim();
-  if(!gk){toast('Enter your Gemini API key!','error');return;}
-  const hk=hkey.value.trim();
-  if(!hk){toast('Enter your HuggingFace token!','error');return;}
+  autoSaveKeys();
 
-  busy=true; setBusy(true); show('prog');
+  const txt=el('diary').value.trim();
+  if(!txt){toast('Please write your diary entry first!','error'); el('diary').focus(); return;}
+  const gk=el('gkey').value.trim();
+  if(!gk){toast('Please enter your Google Gemini API key!','error'); el('gkey').focus(); return;}
+  const hk=el('hkey').value.trim();
+  if(!hk){toast('Please enter your HuggingFace token!','error'); el('hkey').focus(); return;}
+
+  busy=true; setBusy(true); showEl('prog'); hideEl('ppbox');
+  ['s1','s2','s3'].forEach(function(id){
+    const elem=el(id);
+    if(elem){ elem.className='step'; const sp=elem.querySelector('.sp'); if(sp) sp.style.display='none'; }
+  });
 
   try{
     setStep('s1','active');
     const prompt=await callGemini(gk,txt);
     setStep('s1','done');
-    pptext.textContent=prompt;
-    ppbox.classList.add('show');
+    el('pptext').textContent=prompt;
+    el('ppbox').classList.add('show');
 
     setStep('s2','active');
     const imgUrl=await callHF(hk,prompt);
     setStep('s2','done');
 
     setStep('s3','active');
-    const week=week.value.trim()||('Week '+(entries.length+1));
+    const weekVal=el('week').value.trim()||('Week '+(entries.length+1));
     entries.push({
-      id:Date.now(), week, diaryText:txt, visualPrompt:prompt, imageDataUrl:imgUrl,
+      id:Date.now(), week:weekVal, diaryText:txt, visualPrompt:prompt, imageDataUrl:imgUrl,
       createdAt:new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
     });
     saveEntries(); setStep('s3','done');
-    diary.value=''; week.value='';
-    render(); toast('Manga page added! \uD83C\uDF89','success');
-    setTimeout(()=>{
-      const c=document.querySelectorAll('.card');
+    el('diary').value=''; el('week').value='';
+    render(); toast('Manga page added to your timeline! 🎉','success');
+    setTimeout(function(){
+      var c=document.querySelectorAll('.card');
       if(c.length) c[c.length-1].scrollIntoView({behavior:'smooth',block:'center'});
     },300);
-  }catch(e){
-    ['s1','s2','s3'].forEach(id=>{ if(.classList.contains('active')) setStep(id,'error'); });
-    toast('Error: '+e.message,'error');
+  }catch(err){
+    console.error('Process error:', err);
+    ['s1','s2','s3'].forEach(function(id){ if(el(id)&&el(id).classList.contains('active')) setStep(id,'error'); });
+    toast(err.message || 'An error occurred during processing.','error');
   }finally{ busy=false; setBusy(false); }
 }
 
 function setBusy(b){
-  pbtn.disabled=b;
-  picon.style.display=b?'none':'inline';
-  ptxt.textContent=b?'Processing\u2026':'Process Entry';
-  psp.style.display=b?'inline-block':'none';
+  el('pbtn').disabled=b;
+  el('picon').style.display=b?'none':'inline';
+  el('ptxt').textContent=b?'Processing\u2026':'Process Entry';
+  el('psp').style.display=b?'inline-block':'none';
 }
 
-async function callGemini(key,diary){
-  const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key='+key;
+async function callGemini(key,diaryText){
+  const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash-latest'];
   const sys='You are an expert anime art prompt engineer.\n'+
     'Convert the diary entry into a highly detailed comma-separated visual prompt for an anime text-to-image model (SDXL).\n'+
     'Rules:\n'+
@@ -347,15 +386,31 @@ async function callGemini(key,diary){
     '4. MUST end the prompt by appending verbatim: '+CHAR_BASE+'\n'+
     '5. Keep total prompt under 400 words.';
   const body={
-    contents:[{role:'user',parts:[{text:sys+'\n\nDiary entry:\n"'+diary+'"'}]}],
+    contents:[{role:'user',parts:[{text:sys+'\n\nDiary entry:\n"'+diaryText+'"'}]}],
     generationConfig:{temperature:0.85,maxOutputTokens:512}
   };
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  if(!r.ok){const e=await r.json().catch(()=>({})); throw new Error('Gemini '+r.status+': '+(e?.error?.message||r.statusText));}
-  const d=await r.json();
-  const t=d?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if(!t) throw new Error('Gemini returned empty. Check your API key.');
-  return t.includes('anime style')? t.trim() : t.trimEnd()+', '+CHAR_BASE;
+
+  let lastErr = null;
+  for (const model of models) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (r.ok) {
+        const d = await r.json();
+        const t = d && d.candidates && d.candidates[0] && d.candidates[0].content && d.candidates[0].content.parts && d.candidates[0].content.parts[0] && d.candidates[0].content.parts[0].text;
+        if (!t) throw new Error('Gemini returned empty response.');
+        return t.indexOf('anime style') !== -1 ? t.trim() : t.trimEnd() + ', ' + CHAR_BASE;
+      }
+      const errJson = await r.json().catch(function(){ return {}; });
+      const msg = errJson && errJson.error && errJson.error.message || r.statusText || ('HTTP ' + r.status);
+      lastErr = new Error('Gemini (' + model + '): ' + msg);
+      if (r.status !== 404) throw lastErr;
+    } catch (e) {
+      lastErr = e;
+      if (e.message && !e.message.includes('404')) throw e;
+    }
+  }
+  throw lastErr || new Error('Failed to reach Gemini API.');
 }
 
 async function callHF(token,prompt){
@@ -366,30 +421,47 @@ async function callHF(token,prompt){
     headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','x-wait-for-model':'true'},
     body:JSON.stringify({inputs:prompt,parameters:{negative_prompt:neg,width:832,height:1216,num_inference_steps:28,guidance_scale:7}})
   });
-  if(!r.ok){let m='HuggingFace '+r.status; try{const e=await r.json();m+=': '+(e.error||r.statusText);}catch{} throw new Error(m);}
+  if(!r.ok){
+    let m='HuggingFace ('+r.status+')';
+    try{
+      const e=await r.json();
+      if(e && e.error) m += ': ' + (typeof e.error === 'string' ? e.error : JSON.stringify(e.error));
+      else if(e && e.message) m += ': ' + e.message;
+    }catch(x){ m += ': ' + r.statusText; }
+    throw new Error(m);
+  }
   const blob=await r.blob();
-  return new Promise((res,rej)=>{
+  if(blob.type && blob.type.indexOf('application/json') !== -1){
+    const txt = await blob.text();
+    try {
+      const json = JSON.parse(txt);
+      if(json.error) throw new Error('HuggingFace: ' + json.error);
+    } catch(err) {
+      if(err.message && err.message.indexOf('HuggingFace:') !== -1) throw err;
+    }
+  }
+  return new Promise(function(res,rej){
     const rd=new FileReader();
-    rd.onload=()=>res(rd.result);
-    rd.onerror=()=>rej(new Error('Failed to read image.'));
+    rd.onload=function(){res(rd.result);};
+    rd.onerror=function(){rej(new Error('Failed to read image blob.'));};
     rd.readAsDataURL(blob);
   });
 }
 
 function render(){
-  const grid=grid, empty=empty;
-  tlcount.textContent=entries.length;
-  statP.textContent=entries.length;
-  statW.textContent=entries.length;
-  if(!entries.length){grid.innerHTML=''; empty.style.display='flex'; return;}
-  empty.style.display='none';
-  grid.innerHTML=entries.map(buildCard).join('');
+  var gridEl=el('grid'), emptyEl=el('empty');
+  el('tlcount').textContent=entries.length;
+  el('statP').textContent=entries.length;
+  el('statW').textContent=entries.length;
+  if(!entries.length){gridEl.innerHTML=''; emptyEl.style.display='flex'; return;}
+  emptyEl.style.display='none';
+  gridEl.innerHTML=entries.map(buildCard).join('');
 }
 
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 
 function buildCard(e){
-  const img=e.imageDataUrl
+  var img=e.imageDataUrl
     ? '<img src="'+e.imageDataUrl+'" alt="'+esc(e.week)+'" onclick="lb(\''+e.id+'\')" style="cursor:zoom-in" loading="lazy">'
     : '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-3)">No Image</div>';
   return '<div class="card" id="c'+e.id+'"><div class="card-panels"></div>'+
@@ -402,40 +474,40 @@ function buildCard(e){
     '</div></div>';
 }
 
-function lb(id){ const e=entries.find(x=>String(x.id)===String(id)); if(!e?.imageDataUrl) return; lbimg.src=e.imageDataUrl; lightbox.classList.add('open'); }
-function closeLb(){ lightbox.classList.remove('open'); }
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeLb(); });
+function lb(id){ var e=entries.find(function(x){return String(x.id)===String(id);}); if(!e||!e.imageDataUrl) return; el('lbimg').src=e.imageDataUrl; el('lightbox').classList.add('open'); }
+function closeLb(){ el('lightbox').classList.remove('open'); }
+document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeLb(); });
 
-function delModal(id){ pendingDel=id; delmod.classList.add('open'); }
-function closeDelModal(){ pendingDel=null; delmod.classList.remove('open'); }
+function delModal(id){ pendingDel=id; el('delmod').classList.add('open'); }
+function closeDelModal(){ pendingDel=null; el('delmod').classList.remove('open'); }
 function confirmDel(){
   if(!pendingDel) return;
-  entries=entries.filter(e=>String(e.id)!==String(pendingDel));
+  entries=entries.filter(function(e){return String(e.id)!==String(pendingDel);});
   saveEntries(); render(); closeDelModal(); toast('Entry deleted.','info');
 }
-function confirmClear(){ clearmod.classList.add('open'); }
+function confirmClear(){ el('clearmod').classList.add('open'); }
 function clearAll(){
   entries=[]; saveEntries(); render();
-  clearmod.classList.remove('open');
-  ppbox.classList.remove('show');
-  prog.style.display='none';
+  el('clearmod').classList.remove('open');
+  el('ppbox').classList.remove('show');
+  el('prog').style.display='none';
   toast('All entries cleared.','info');
 }
 
 function dlImg(id){
-  const e=entries.find(x=>String(x.id)===String(id));
-  if(!e?.imageDataUrl){toast('No image.','error');return;}
-  const a=document.createElement('a');
+  var e=entries.find(function(x){return String(x.id)===String(id);});
+  if(!e||!e.imageDataUrl){toast('No image.','error');return;}
+  var a=document.createElement('a');
   a.href=e.imageDataUrl; a.download='manga_'+e.week.replace(/\s+/g,'_')+'.png'; a.click();
 }
 
 async function exportPDF(){
   if(!entries.length){toast('No entries to export!','error');return;}
-  expbtn.disabled=true; expsp.style.display='inline-block';
+  el('expbtn').disabled=true; el('expsp').style.display='inline-block';
   try{
-    const {jsPDF}=window.jspdf;
-    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
-    const PW=148,PH=210,M=8;
+    var jsPDF=window.jspdf.jsPDF;
+    var doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
+    var PW=148,PH=210,M=8;
 
     doc.setFillColor(13,13,15); doc.rect(0,0,PW,PH,'F');
     doc.setTextColor(124,107,255); doc.setFontSize(22); doc.setFont('helvetica','bold');
@@ -446,48 +518,52 @@ async function exportPDF(){
     doc.text(entries.length+' page'+(entries.length!==1?'s':'')+' \u00B7 '+new Date().toLocaleDateString('en-IN'),PW/2,92,{align:'center'});
     doc.setDrawColor(124,107,255); doc.setLineWidth(0.5); doc.line(M+20,98,PW-M-20,98);
 
-    for(let i=0;i<entries.length;i++){
-      const e=entries[i]; doc.addPage();
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i]; doc.addPage();
       doc.setFillColor(26,26,36); doc.rect(0,0,PW,PH,'F');
       doc.setFillColor(20,20,30); doc.rect(0,0,PW,16,'F');
       doc.setTextColor(124,107,255); doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.text(e.week,M,10);
       doc.setTextColor(90,90,120); doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.text(e.createdAt,PW-M,10,{align:'right'});
       doc.setDrawColor(42,42,58); doc.setLineWidth(0.3); doc.line(0,16,PW,16);
-      const IT=18,IW=PW-2*M,IH=108;
+      var IT=18,IW=PW-2*M,IH=108;
       if(e.imageDataUrl){
         try{
           doc.setDrawColor(44,44,60); doc.setLineWidth(0.4); doc.rect(M-.5,IT-.5,IW+1,IH+1);
           doc.addImage(e.imageDataUrl,'PNG',M,IT,IW,IH,undefined,'FAST');
-        }catch{
+        }catch(ex){
           doc.setFillColor(20,20,28); doc.rect(M,IT,IW,IH,'F');
           doc.setTextColor(90,90,120); doc.setFontSize(8); doc.text('Image unavailable',PW/2,IT+IH/2,{align:'center'});
         }
       }else{doc.setFillColor(20,20,28);doc.rect(M,IT,IW,IH,'F');}
-      const CT=IT+IH+6;
+      var CT=IT+IH+6;
       doc.setTextColor(180,180,200); doc.setFontSize(8); doc.setFont('helvetica','normal');
-      const lines=doc.splitTextToSize(e.diaryText,IW);
+      var lines=doc.splitTextToSize(e.diaryText,IW);
       doc.text(lines.slice(0,7),M,CT,{lineHeightFactor:1.5});
       doc.setTextColor(60,60,80); doc.setFontSize(7); doc.text((i+1)+' / '+entries.length,PW/2,PH-4,{align:'center'});
     }
     doc.save('manga_diary_'+Date.now()+'.pdf');
-    toast('PDF downloaded! \uD83D\uDCDA','success');
+    toast('PDF downloaded!','success');
   }catch(err){console.error(err);toast('Export failed: '+err.message,'error');}
-  finally{expbtn.disabled=false; expsp.style.display='none';}
+  finally{el('expbtn').disabled=false; el('expsp').style.display='none';}
 }
 
 function toast(msg,type){
   type=type||'info';
-  const c=toasts,el=document.createElement('div');
-  el.className='toast '+type;
-  const icons={success:'\u2705',error:'\u274C',info:'\u2139\uFE0F'};
-  el.innerHTML='<span>'+(icons[type]||'\u2139\uFE0F')+'</span><span>'+esc(msg)+'</span>';
-  c.appendChild(el);
-  setTimeout(()=>{el.style.transition='opacity .3s,transform .3s';el.style.opacity='0';el.style.transform='translateX(30px)';setTimeout(()=>el.remove(),320);},3500);
+  var c=el('toasts'),d=document.createElement('div');
+  d.className='toast '+type;
+  var icons={success:'\u2705',error:'\u274C',info:'\u2139\uFE0F'};
+  d.innerHTML='<span>'+(icons[type]||'\u2139\uFE0F')+'</span><span>'+esc(msg)+'</span>';
+  c.appendChild(d);
+  setTimeout(function(){d.style.transition='opacity .3s,transform .3s';d.style.opacity='0';d.style.transform='translateX(30px)';setTimeout(function(){d.remove();},320);},3500);
 }
 
-function openSettings(){ apisec.scrollIntoView({behavior:'smooth',block:'start'}); gkey.focus(); }
+function openSettings(){ el('apisec').scrollIntoView({behavior:'smooth',block:'start'}); el('gkey').focus(); }
 
-init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 </script>
 </body>
 </html>

@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Personal Manga Diary Creator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0d0d0f;--bg-panel:#14141a;--bg-card:#1a1a24;--bg-input:#0f0f16;
+  --border:#2a2a3a;--border-glow:#5c5cff44;
+  --accent:#7c6bff;--accent-2:#ff6b9d;--accent-3:#6bffd8;
+  --text-1:#eaeaf5;--text-2:#9090b0;--text-3:#5a5a7a;
+  --shadow:0 4px 32px #0009;--radius:12px;--radius-sm:6px;
+  --font-main:'Segoe UI',system-ui,sans-serif;--font-mono:'Consolas',monospace
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font-main);background:var(--bg-deep);color:var(--text-1);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg-deep)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+header{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#0d0d1a,#14141f);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;backdrop-filter:blur(12px);box-shadow:0 2px 24px #00000088}
+.logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 16px #7c6bff55}
+.logo-text{font-size:1.1rem;font-weight:700;background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-sub{font-size:.7rem;color:var(--text-3);margin-top:1px}
+.header-actions{display:flex;gap:10px;align-items:center}
+.app-layout{display:grid;grid-template-columns:340px 1fr;min-height:calc(100vh - 69px)}
+.sidebar{background:var(--bg-panel);border-right:1px solid var(--border);padding:20px 16px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;max-height:calc(100vh - 69px);position:sticky;top:69px}
+.section{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:12px}
+.section-title{font-size:.72rem;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--text-3);display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 6px var(--accent)}
+label{font-size:.78rem;color:var(--text-2);margin-bottom:4px;display:block}
+.field{display:flex;flex-direction:column;gap:4px}
+input[type=password],input[type=text],textarea{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-1);font-family:var(--font-main);font-size:.85rem;padding:9px 12px;width:100%;transition:border-color .2s,box-shadow .2s;outline:none}
+input[type=password]:focus,input[type=text]:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--border-glow)}
+textarea{resize:vertical;min-height:120px;line-height:1.5}
+.key-badge{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;color:var(--accent-3);background:#6bffd81a;border:1px solid #6bffd833;border-radius:20px;padding:2px 8px;margin-top:4px}
+button{cursor:pointer;border:none;border-radius:var(--radius-sm);font-family:var(--font-main);font-weight:600;transition:all .18s ease}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#5a4be8);color:#fff;padding:11px 20px;font-size:.88rem;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 16px #7c6bff44}
+.btn-primary:hover:not(:disabled){filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 4px 24px #7c6bff66}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+.btn-sec{background:transparent;border:1px solid var(--border);color:var(--text-2);padding:9px 16px;font-size:.82rem}
+.btn-sec:hover{border-color:var(--accent);color:var(--accent)}
+.btn-del{background:transparent;border:1px solid #ff4f6644;color:#ff4f66;padding:8px 14px;font-size:.78rem}
+.btn-del:hover{background:#ff4f6622}
+.btn-export{background:linear-gradient(135deg,#ff6b9d,#c94b7b);color:#fff;padding:11px 20px;font-size:.88rem;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 16px #ff6b9d44}
+.btn-export:hover:not(:disabled){filter:brightness(1.12);transform:translateY(-1px)}
+.btn-export:disabled{opacity:.45;cursor:not-allowed}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-steps{display:flex;flex-direction:column;gap:8px}
+.step{display:flex;align-items:center;gap:10px;font-size:.8rem;color:var(--text-3);padding:8px 10px;border-radius:var(--radius-sm);border:1px solid transparent;transition:all .2s}
+.step.active{color:var(--text-1);background:#7c6bff11;border-color:#7c6bff44}
+.step.done{color:var(--accent-3);background:#6bffd808;border-color:#6bffd822}
+.step.error{color:#ff6b6b;background:#ff6b6b0a;border-color:#ff6b6b22}
+.step-icon{font-size:14px;flex-shrink:0}
+.main-content{padding:24px;overflow-y:auto}
+.prompt-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:none}
+.prompt-box.show{display:block}
+.prompt-label{font-size:.7rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.prompt-text{font-family:var(--font-mono);font-size:.75rem;color:var(--text-2);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.tl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.tl-title{font-size:1.3rem;font-weight:700;display:flex;align-items:center;gap:10px}
+.tl-count{background:var(--accent);color:#fff;border-radius:20px;padding:2px 10px;font-size:.75rem;font-weight:700}
+.manga-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;position:relative}
+.card:hover{transform:translateY(-3px);box-shadow:0 8px 32px #00000066;border-color:#7c6bff55}
+.card-head{padding:10px 14px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.week-badge{font-size:.7rem;font-weight:700;color:var(--accent);background:#7c6bff1a;border:1px solid #7c6bff33;border-radius:20px;padding:2px 10px}
+.card-date{font-size:.68rem;color:var(--text-3)}
+.img-wrap{position:relative;width:100%;padding-top:100%;background:#07070e;overflow:hidden}
+.img-wrap img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:block}
+.img-wrap::after{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,transparent 60%,var(--bg-card) 100%);pointer-events:none}
+.card-panels{position:absolute;inset:0;pointer-events:none;border:3px solid var(--border);border-radius:inherit}
+.card-caption{padding:12px 14px 14px;flex:1}
+.caption-text{font-size:.82rem;color:var(--text-2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.card-actions{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:80px 20px;color:var(--text-3);text-align:center}
+.empty-icon{font-size:64px;opacity:.4;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.empty-title{font-size:1.1rem;font-weight:600;color:var(--text-2)}
+.empty-sub{font-size:.85rem;max-width:300px;line-height:1.5}
+#toasts{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+.toast{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 18px;font-size:.85rem;color:var(--text-1);box-shadow:var(--shadow);max-width:320px;animation:slideIn .25s ease;display:flex;align-items:center;gap:10px}
+.toast.success{border-left:3px solid var(--accent-3)}
+.toast.error{border-left:3px solid #ff6b6b}
+.toast.info{border-left:3px solid var(--accent)}
+@keyframes slideIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+.overlay{display:none;position:fixed;inset:0;background:#00000099;z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.overlay.open{display:flex}
+.modal{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:min(480px,92vw);box-shadow:var(--shadow)}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:10px;color:var(--accent-2)}
+.modal-body{font-size:.85rem;color:var(--text-2);line-height:1.6;margin-bottom:20px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end}
+#lightbox{display:none;position:fixed;inset:0;background:#000000dd;z-index:300;align-items:center;justify-content:center;cursor:zoom-out}
+#lightbox.open{display:flex}
+#lightbox img{max-width:92vw;max-height:92vh;border-radius:var(--radius);box-shadow:0 8px 64px #000;object-fit:contain}
+.stat-row{display:flex;gap:8px;flex-wrap:wrap}
+.stat-pill{background:var(--bg-input);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:.72rem;color:var(--text-2);display:flex;align-items:center;gap:5px}
+.stat-pill span{color:var(--text-1);font-weight:600}
+.hatch{position:fixed;top:0;right:0;width:400px;height:400px;opacity:.018;pointer-events:none;z-index:0;background-image:radial-gradient(circle,#fff 1px,transparent 1px);background-size:14px 14px}
+@media(max-width:768px){.app-layout{grid-template-columns:1fr}.sidebar{max-height:none;position:relative;top:0;border-right:none;border-bottom:1px solid var(--border)}.main-content{padding:16px}}
+</style>
+</head>
+<body>
+
+<div class="hatch"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">&#x1F4D6;</div>
+    <div>
+      <div class="logo-text">Manga Diary Creator</div>
+      <div class="logo-sub">Weekly Life &rarr; Anime Pages</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-sec" onclick="openSettings()">&#x2699;&#xFE0F; Settings</button>
+  </div>
+</header>
+
+<div class="app-layout">
+  <aside class="sidebar">
+
+    <!-- API Keys -->
+    <div class="section" id="apisec">
+      <div class="section-title"><div class="dot"></div>&nbsp;API Configuration</div>
+      <div class="field">
+        <label>Google Gemini API Key</label>
+        <input type="password" id="gkey" placeholder="AIza&#x2026;" autocomplete="off"/>
+        <div id="gbadge" class="key-badge" style="display:none">&#x2713; Saved in LocalStorage</div>
+      </div>
+      <div class="field">
+        <label>Hugging Face Access Token</label>
+        <input type="password" id="hkey" placeholder="hf_&#x2026;" autocomplete="off"/>
+        <div id="hbadge" class="key-badge" style="display:none">&#x2713; Saved in LocalStorage</div>
+      </div>
+      <button class="btn-sec" onclick="saveKeys()">&#x1F4BE; Save Keys</button>
+    </div>
+
+    <!-- Diary Input -->
+    <div class="section">
+      <div class="section-title"><div class="dot" style="background:var(--accent-2);box-shadow:0 0 6px var(--accent-2)"></div>&nbsp;Diary Entry</div>
+      <div class="field">
+        <label>Week Label (optional)</label>
+        <input type="text" id="week" placeholder="e.g. Week 12 &ndash; Sep 2026"/>
+      </div>
+      <div class="field">
+        <label>Your Weekly Update</label>
+        <textarea id="diary" placeholder="Write about your week &mdash; classes, hostel life, friends, projects, feelings&hellip;"></textarea>
+      </div>
+      <button class="btn-primary" id="pbtn" onclick="processEntry()">
+        <span id="picon">&#x2728;</span>
+        <span id="ptxt">Process Entry</span>
+        <div class="spinner" id="psp" style="display:none"></div>
+      </button>
+    </div>
+
+    <!-- Progress -->
+    <div class="section" id="prog" style="display:none">
+      <div class="section-title"><div class="dot" style="background:var(--accent-3);box-shadow:0 0 6px var(--accent-3)"></div>&nbsp;Generation Progress</div>
+      <div class="progress-steps">
+        <div class="step" id="s1">
+          <span class="step-icon">&#x1F9E0;</span>
+          <span>Gemini: Crafting visual prompt&hellip;</span>
+          <div class="spinner sp" style="display:none;margin-left:auto"></div>
+        </div>
+        <div class="step" id="s2">
+          <span class="step-icon">&#x1F3A8;</span>
+          <span>HuggingFace: Generating image&hellip;</span>
+          <div class="spinner sp" style="display:none;margin-left:auto"></div>
+        </div>
+        <div class="step" id="s3">
+          <span class="step-icon">&#x1F4BE;</span>
+          <span>Saving to timeline&hellip;</span>
+          <div class="spinner sp" style="display:none;margin-left:auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prompt Preview -->
+    <div class="prompt-box" id="ppbox">
+      <div class="prompt-label">Generated Visual Prompt</div>
+      <div class="prompt-text" id="pptext"></div>
+    </div>
+
+    <!-- Export -->
+    <div class="section">
+      <div class="section-title"><div class="dot" style="background:var(--accent-2)"></div>&nbsp;Export</div>
+      <div class="stat-row">
+        <div class="stat-pill">Pages:&nbsp;<span id="statP">0</span></div>
+        <div class="stat-pill">Weeks:&nbsp;<span id="statW">0</span></div>
+      </div>
+      <button class="btn-export" id="expbtn" onclick="exportPDF()">
+        <span>&#x1F4DA;</span>
+        <span>Download as Book (PDF)</span>
+        <div class="spinner" id="expsp" style="display:none"></div>
+      </button>
+      <button class="btn-del" onclick="confirmClear()" style="margin-top:4px;width:100%">&#x1F5D1;&#xFE0F; Clear All Entries</button>
+    </div>
+
+  </aside>
+
+  <main class="main-content">
+    <div class="tl-header">
+      <div class="tl-title">
+        &#x1F4DC; My Manga Timeline
+        <div class="tl-count" id="tlcount">0</div>
+      </div>
+    </div>
+    <div class="manga-grid" id="grid"></div>
+    <div class="empty" id="empty">
+      <div class="empty-icon">&#x1F977;</div>
+      <div class="empty-title">Your story hasn&apos;t begun yet&hellip;</div>
+      <div class="empty-sub">Write your first diary entry and click <strong>Process Entry</strong> to generate your first manga page!</div>
+    </div>
+  </main>
+</div>
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLb()">
+  <img id="lbimg" src="" alt="Full view"/>
+</div>
+
+<!-- Delete Modal -->
+<div class="overlay" id="delmod">
+  <div class="modal">
+    <div class="modal-title">&#x26A0;&#xFE0F; Delete Entry</div>
+    <div class="modal-body">Delete this manga page? This cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="btn-sec" onclick="closeDelModal()">Cancel</button>
+      <button class="btn-del" onclick="confirmDel()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clear All Modal -->
+<div class="overlay" id="clearmod">
+  <div class="modal">
+    <div class="modal-title">&#x26A0;&#xFE0F; Clear All Entries</div>
+    <div class="modal-body">Permanently delete ALL manga pages from LocalStorage?</div>
+    <div class="modal-actions">
+      <button class="btn-sec" onclick="document.getElementById('clearmod').classList.remove('open')">Cancel</button>
+      <button class="btn-del" onclick="clearAll()">Yes, Delete Everything</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+const LS_G='manga_gemini_key', LS_H='manga_hf_key', LS_E='manga_diary_entries';
+const CHAR_BASE='1boy, Indian male, college student, short hair, electronics engineering student, hostel room background, anime style, highly detailed';
+const HF_MODEL='cagliostrolab/animagine-xl-3.1';
+let entries=[], pendingDel=null, busy=false;
+
+function init(){ loadKeys(); loadEntries(); render(); }
+
+function loadKeys(){
+  const g=localStorage.getItem(LS_G), h=localStorage.getItem(LS_H);
+  if(g){gkey.value=g; show('gbadge');}
+  if(h){hkey.value=h; show('hbadge');}
+}
+
+function saveKeys(){
+  const g=gkey.value.trim(), h=hkey.value.trim();
+  if(g){localStorage.setItem(LS_G,g); show('gbadge');}
+  if(h){localStorage.setItem(LS_H,h); show('hbadge');}
+  if(g||h) toast('Keys saved!','success'); else toast('Enter at least one key.','error');
+}
+
+function loadEntries(){
+  try{ entries=JSON.parse(localStorage.getItem(LS_E))||[]; }catch{entries=[];}
+}
+function saveEntries(){ localStorage.setItem(LS_E, JSON.stringify(entries)); }
+
+function (id){ return document.getElementById(id); }
+function { return document.getElementById(id); }
+function show(id){ .style.display=''; }
+function hide(id){ .style.display='none'; }
+
+function setStep(id, st){
+  const el=; el.className='step '+st;
+  const sp=el.querySelector('.sp');
+  if(sp) sp.style.display= st==='active'?'inline-block':'none';
+}
+
+async function processEntry(){
+  if(busy) return;
+  const txt=diary.value.trim();
+  if(!txt){toast('Write your diary entry first!','error');return;}
+  const gk=gkey.value.trim();
+  if(!gk){toast('Enter your Gemini API key!','error');return;}
+  const hk=hkey.value.trim();
+  if(!hk){toast('Enter your HuggingFace token!','error');return;}
+
+  busy=true; setBusy(true); show('prog');
+
+  try{
+    setStep('s1','active');
+    const prompt=await callGemini(gk,txt);
+    setStep('s1','done');
+    pptext.textContent=prompt;
+    ppbox.classList.add('show');
+
+    setStep('s2','active');
+    const imgUrl=await callHF(hk,prompt);
+    setStep('s2','done');
+
+    setStep('s3','active');
+    const week=week.value.trim()||('Week '+(entries.length+1));
+    entries.push({
+      id:Date.now(), week, diaryText:txt, visualPrompt:prompt, imageDataUrl:imgUrl,
+      createdAt:new Date().toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
+    });
+    saveEntries(); setStep('s3','done');
+    diary.value=''; week.value='';
+    render(); toast('Manga page added! \uD83C\uDF89','success');
+    setTimeout(()=>{
+      const c=document.querySelectorAll('.card');
+      if(c.length) c[c.length-1].scrollIntoView({behavior:'smooth',block:'center'});
+    },300);
+  }catch(e){
+    ['s1','s2','s3'].forEach(id=>{ if(.classList.contains('active')) setStep(id,'error'); });
+    toast('Error: '+e.message,'error');
+  }finally{ busy=false; setBusy(false); }
+}
+
+function setBusy(b){
+  pbtn.disabled=b;
+  picon.style.display=b?'none':'inline';
+  ptxt.textContent=b?'Processing\u2026':'Process Entry';
+  psp.style.display=b?'inline-block':'none';
+}
+
+async function callGemini(key,diary){
+  const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key='+key;
+  const sys='You are an expert anime art prompt engineer.\n'+
+    'Convert the diary entry into a highly detailed comma-separated visual prompt for an anime text-to-image model (SDXL).\n'+
+    'Rules:\n'+
+    '1. Describe scene visually: setting, lighting, mood, time of day, pose, expression, clothing, action, background details.\n'+
+    '2. Use rich anime art terms: soft ambient lighting, detailed linework, vibrant colors, cinematic composition, etc.\n'+
+    '3. Output ONLY the comma-separated prompt - no explanations, no markdown, no extra text.\n'+
+    '4. MUST end the prompt by appending verbatim: '+CHAR_BASE+'\n'+
+    '5. Keep total prompt under 400 words.';
+  const body={
+    contents:[{role:'user',parts:[{text:sys+'\n\nDiary entry:\n"'+diary+'"'}]}],
+    generationConfig:{temperature:0.85,maxOutputTokens:512}
+  };
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){const e=await r.json().catch(()=>({})); throw new Error('Gemini '+r.status+': '+(e?.error?.message||r.statusText));}
+  const d=await r.json();
+  const t=d?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if(!t) throw new Error('Gemini returned empty. Check your API key.');
+  return t.includes('anime style')? t.trim() : t.trimEnd()+', '+CHAR_BASE;
+}
+
+async function callHF(token,prompt){
+  const url='https://api-inference.huggingface.co/models/'+HF_MODEL;
+  const neg='nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, blurry';
+  const r=await fetch(url,{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json','x-wait-for-model':'true'},
+    body:JSON.stringify({inputs:prompt,parameters:{negative_prompt:neg,width:832,height:1216,num_inference_steps:28,guidance_scale:7}})
+  });
+  if(!r.ok){let m='HuggingFace '+r.status; try{const e=await r.json();m+=': '+(e.error||r.statusText);}catch{} throw new Error(m);}
+  const blob=await r.blob();
+  return new Promise((res,rej)=>{
+    const rd=new FileReader();
+    rd.onload=()=>res(rd.result);
+    rd.onerror=()=>rej(new Error('Failed to read image.'));
+    rd.readAsDataURL(blob);
+  });
+}
+
+function render(){
+  const grid=grid, empty=empty;
+  tlcount.textContent=entries.length;
+  statP.textContent=entries.length;
+  statW.textContent=entries.length;
+  if(!entries.length){grid.innerHTML=''; empty.style.display='flex'; return;}
+  empty.style.display='none';
+  grid.innerHTML=entries.map(buildCard).join('');
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+
+function buildCard(e){
+  const img=e.imageDataUrl
+    ? '<img src="'+e.imageDataUrl+'" alt="'+esc(e.week)+'" onclick="lb(\''+e.id+'\')" style="cursor:zoom-in" loading="lazy">'
+    : '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-3)">No Image</div>';
+  return '<div class="card" id="c'+e.id+'"><div class="card-panels"></div>'+
+    '<div class="card-head"><div class="week-badge">'+esc(e.week)+'</div><div class="card-date">'+esc(e.createdAt)+'</div></div>'+
+    '<div class="img-wrap">'+img+'</div>'+
+    '<div class="card-caption"><div class="caption-text">'+esc(e.diaryText)+'</div></div>'+
+    '<div class="card-actions">'+
+      '<button class="btn-sec" style="font-size:.75rem;padding:6px 12px" onclick="dlImg(\''+e.id+'\')">&#x2B07; Image</button>'+
+      '<button class="btn-del" onclick="delModal(\''+e.id+'\')">&#x1F5D1;</button>'+
+    '</div></div>';
+}
+
+function lb(id){ const e=entries.find(x=>String(x.id)===String(id)); if(!e?.imageDataUrl) return; lbimg.src=e.imageDataUrl; lightbox.classList.add('open'); }
+function closeLb(){ lightbox.classList.remove('open'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeLb(); });
+
+function delModal(id){ pendingDel=id; delmod.classList.add('open'); }
+function closeDelModal(){ pendingDel=null; delmod.classList.remove('open'); }
+function confirmDel(){
+  if(!pendingDel) return;
+  entries=entries.filter(e=>String(e.id)!==String(pendingDel));
+  saveEntries(); render(); closeDelModal(); toast('Entry deleted.','info');
+}
+function confirmClear(){ clearmod.classList.add('open'); }
+function clearAll(){
+  entries=[]; saveEntries(); render();
+  clearmod.classList.remove('open');
+  ppbox.classList.remove('show');
+  prog.style.display='none';
+  toast('All entries cleared.','info');
+}
+
+function dlImg(id){
+  const e=entries.find(x=>String(x.id)===String(id));
+  if(!e?.imageDataUrl){toast('No image.','error');return;}
+  const a=document.createElement('a');
+  a.href=e.imageDataUrl; a.download='manga_'+e.week.replace(/\s+/g,'_')+'.png'; a.click();
+}
+
+async function exportPDF(){
+  if(!entries.length){toast('No entries to export!','error');return;}
+  expbtn.disabled=true; expsp.style.display='inline-block';
+  try{
+    const {jsPDF}=window.jspdf;
+    const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a5'});
+    const PW=148,PH=210,M=8;
+
+    doc.setFillColor(13,13,15); doc.rect(0,0,PW,PH,'F');
+    doc.setTextColor(124,107,255); doc.setFontSize(22); doc.setFont('helvetica','bold');
+    doc.text('Personal Manga Diary',PW/2,68,{align:'center'});
+    doc.setTextColor(160,160,180); doc.setFontSize(11); doc.setFont('helvetica','normal');
+    doc.text('An Anime Comic of My Life',PW/2,80,{align:'center'});
+    doc.setTextColor(90,90,120); doc.setFontSize(9);
+    doc.text(entries.length+' page'+(entries.length!==1?'s':'')+' \u00B7 '+new Date().toLocaleDateString('en-IN'),PW/2,92,{align:'center'});
+    doc.setDrawColor(124,107,255); doc.setLineWidth(0.5); doc.line(M+20,98,PW-M-20,98);
+
+    for(let i=0;i<entries.length;i++){
+      const e=entries[i]; doc.addPage();
+      doc.setFillColor(26,26,36); doc.rect(0,0,PW,PH,'F');
+      doc.setFillColor(20,20,30); doc.rect(0,0,PW,16,'F');
+      doc.setTextColor(124,107,255); doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.text(e.week,M,10);
+      doc.setTextColor(90,90,120); doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.text(e.createdAt,PW-M,10,{align:'right'});
+      doc.setDrawColor(42,42,58); doc.setLineWidth(0.3); doc.line(0,16,PW,16);
+      const IT=18,IW=PW-2*M,IH=108;
+      if(e.imageDataUrl){
+        try{
+          doc.setDrawColor(44,44,60); doc.setLineWidth(0.4); doc.rect(M-.5,IT-.5,IW+1,IH+1);
+          doc.addImage(e.imageDataUrl,'PNG',M,IT,IW,IH,undefined,'FAST');
+        }catch{
+          doc.setFillColor(20,20,28); doc.rect(M,IT,IW,IH,'F');
+          doc.setTextColor(90,90,120); doc.setFontSize(8); doc.text('Image unavailable',PW/2,IT+IH/2,{align:'center'});
+        }
+      }else{doc.setFillColor(20,20,28);doc.rect(M,IT,IW,IH,'F');}
+      const CT=IT+IH+6;
+      doc.setTextColor(180,180,200); doc.setFontSize(8); doc.setFont('helvetica','normal');
+      const lines=doc.splitTextToSize(e.diaryText,IW);
+      doc.text(lines.slice(0,7),M,CT,{lineHeightFactor:1.5});
+      doc.setTextColor(60,60,80); doc.setFontSize(7); doc.text((i+1)+' / '+entries.length,PW/2,PH-4,{align:'center'});
+    }
+    doc.save('manga_diary_'+Date.now()+'.pdf');
+    toast('PDF downloaded! \uD83D\uDCDA','success');
+  }catch(err){console.error(err);toast('Export failed: '+err.message,'error');}
+  finally{expbtn.disabled=false; expsp.style.display='none';}
+}
+
+function toast(msg,type){
+  type=type||'info';
+  const c=toasts,el=document.createElement('div');
+  el.className='toast '+type;
+  const icons={success:'\u2705',error:'\u274C',info:'\u2139\uFE0F'};
+  el.innerHTML='<span>'+(icons[type]||'\u2139\uFE0F')+'</span><span>'+esc(msg)+'</span>';
+  c.appendChild(el);
+  setTimeout(()=>{el.style.transition='opacity .3s,transform .3s';el.style.opacity='0';el.style.transform='translateX(30px)';setTimeout(()=>el.remove(),320);},3500);
+}
+
+function openSettings(){ apisec.scrollIntoView({behavior:'smooth',block:'start'}); gkey.focus(); }
+
+init();
+</script>
+</body>
+</html>
